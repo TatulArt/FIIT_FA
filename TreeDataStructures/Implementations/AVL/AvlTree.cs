@@ -11,6 +11,15 @@ public class AvlTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, AvlNode<
     protected override void OnNodeAdded(AvlNode<TKey, TValue> newNode)
     {
         throw new NotImplementedException();
+        
+        // Вычисление высоты, поворот
+    }
+
+    protected override void OnNodeRemoved(AvlNode<TKey, TValue>? parent, AvlNode<TKey, TValue>? child)
+    {
+        throw new NotImplementedException();
+        
+        // Берем высоту из узла, поворот
     }
 
     
