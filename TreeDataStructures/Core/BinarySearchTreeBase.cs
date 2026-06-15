@@ -4,7 +4,7 @@ using TreeDataStructures.Interfaces;
 
 namespace TreeDataStructures.Core;
 
-public abstract class BinarySearchTreeBase<TKey, TValue, TNode> (IComparer<TKey>? comparer = null) 
+public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>? comparer = null) 
     : ITree<TKey, TValue>
     where TNode : Node<TKey, TValue, TNode>
 {
@@ -97,14 +97,12 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode> (IComparer<TKey>
         {
             TNode candidate = node.Right;
             while (candidate.Left is not null) candidate = candidate.Left;
-            
             if (candidate.Parent != node)
             {
                 Transplant(candidate, candidate.Right);
                 candidate.Right = node.Right;
                 candidate.Right.Parent = candidate;
             }
-            
             Transplant(node, candidate);
             candidate.Left = node.Left;
             candidate.Left.Parent = candidate;
@@ -247,256 +245,415 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode> (IComparer<TKey>
         v?.Parent = u.Parent;
     }
     #endregion
-        
-    //private IEnumerable<TreeEntry<TKey, TValue>>  InOrderTraversal(TNode? node)
-    //{
-    //    if (node == null) {  yield break; }
-    //    throw new NotImplementedException();
-    //}
     
-    public IEnumerable<TreeEntry<TKey, TValue>> InOrder() => new TreeIterator(Root, TraversalStrategy.InOrder);
+    public IEnumerable<TreeEntry<TKey, TValue>>  InOrder() => new TreeIterator(Root, TraversalStrategy.InOrder);
     public IEnumerable<TreeEntry<TKey, TValue>>  PreOrder() => new TreeIterator(Root, TraversalStrategy.PreOrder);
     public IEnumerable<TreeEntry<TKey, TValue>>  PostOrder() => new TreeIterator(Root, TraversalStrategy.PostOrder);
     public IEnumerable<TreeEntry<TKey, TValue>>  InOrderReverse() => new TreeIterator(Root, TraversalStrategy.InOrderReverse);
     public IEnumerable<TreeEntry<TKey, TValue>>  PreOrderReverse() => new TreeIterator(Root, TraversalStrategy.PreOrderReverse);
-    public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverse() => new TreeIterator(Root, TraversalStrategy.PostOrderReverse);
+    public IEnumerable<TreeEntry<TKey, TValue>>  PostOrderReverse() => new TreeIterator(Root, TraversalStrategy.PostOrderReverse);
     
     /// <summary>
     /// Внутренний класс-итератор. 
     /// Реализует паттерн Iterator вручную, без yield return (ban).
     /// </summary>
-    private class TreeIterator:
-        IEnumerable<TreeEntry<TKey, TValue>>,
+    private struct TreeIterator : // Подписываемся сразу на оба интерфейса, чтобы можно было получать и Current, и двигать указатель
+        IEnumerable<TreeEntry<TKey, TValue>>, // в зависимости от стратегии
         IEnumerator<TreeEntry<TKey, TValue>>
     {
-
-        private readonly TNode? _root;
-        private readonly TraversalStrategy _strategy;
-        private TNode? _current;
-        private bool _started;
-
-        public TreeIterator(TNode? root, TraversalStrategy strategy)
-        {
-            _root = root;
-            _strategy = strategy;
-            _current = null;
-            _started = false;
-        }
-        
+        // probably add something here
+        private readonly TraversalStrategy _strategy; // or make it template parameter?
+        private readonly TNode? Root;
+        private TNode? currentAlgo;
+        private TNode? current;
+        private TNode? previous = null;
         public IEnumerator<TreeEntry<TKey, TValue>> GetEnumerator() => this;
         IEnumerator IEnumerable.GetEnumerator() => this;
         
-        public TreeEntry<TKey, TValue> Current
+         public TreeEntry<TKey, TValue> Current  
         {
             get
             {
-                if(_current is null)
-                {
-                    throw new InvalidOperationException();
+                if (current == null) {
+                    throw new InvalidOperationException("Enumeration not started or has ended");
                 }
-                return new TreeEntry<TKey, TValue>(_current.Key, _current.Value, GetCurrentDepth(_current));
+                
+                int depth = 0;
+                TNode ?cur = current;
+                
+                while (cur.Parent != null)
+                {
+                    depth++;
+                    cur = cur.Parent; 
+                }
+                
+                return new TreeEntry<TKey, TValue>(current.Key, current.Value, depth);    
             }
-        }
 
-        private int GetCurrentDepth(TNode? node)
-        {
-            int depth = 0;
-            while (node?.Parent is not null)
-            {
-                depth++;
-                node = node.Parent;
-            }
-            return depth;
         }
         object IEnumerator.Current => Current;
         
+        public TreeIterator(TNode? root, TraversalStrategy strategy)
+        {
+            if (root == null)
+            {
+                Console.WriteLine("null root");
+            }
+            this._strategy = strategy;
+            this.Root = root;
+            this.current = root;
+            this.previous = null;
+            this.currentAlgo = root;
+        }
+        
         public bool MoveNext()
         {
-            if (!_started)
+            if (current == null)
             {
-                _started = true;
-                _current = GetFirstNode(_root, _strategy);
-                return _current is not null;
+                return false;
+            } 
+            else
+            {
+                switch (_strategy)
+                {
+                    case TraversalStrategy.InOrder:
+                        return MoveNextInOrder();
+                    case TraversalStrategy.PreOrder:
+                        return MoveNextPreOrder();
+                    case TraversalStrategy.PostOrder:
+                        return MoveNextPostOrder();
+                    case TraversalStrategy.InOrderReverse:
+                        return MoveNextInOrderReverse();
+                    case TraversalStrategy.PreOrderReverse:
+                        return MoveNextPreOrderReverse();
+                    case TraversalStrategy.PostOrderReverse:
+                        return MoveNextPostOrderReverse();
+                    default:
+                        throw new InvalidOperationException("Do not have such traversal!\n");
+                }
             }
+        }
 
-            _current = GetNextNode(_current,_strategy);
-            return _current is not null;
+        private bool MoveNextInOrder() // лево - корень - право
+        {
+            while (currentAlgo != null)
+            {
+                if (previous == currentAlgo.Parent) // спускаемся
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left; // идем налево до упора
+                    } else
+                    {
+                        current = currentAlgo; // уже нашли самый левый, следующим в итераторе будет он
+                        if (currentAlgo.Right != null) 
+                        {
+                            currentAlgo = currentAlgo.Right; // проверяем правое поддерево крайнего левого узла
+                        } else
+                        {
+                            currentAlgo = currentAlgo.Parent; // если его нет, начинам подниматься
+                        }
+                        return true;
+                    }
+                } else if (previous == currentAlgo.Left) // поднимаемся, пришли из левого поддерева
+                {
+                    previous = currentAlgo;
+                    current = currentAlgo; // следующим будет этот узел
+                    if (currentAlgo.Right != null) // если у него есть правое поддерево, идем по нему
+                    {
+                        currentAlgo = currentAlgo.Right;
+                    } else 
+                    {
+                        currentAlgo = currentAlgo.Parent; // если нет, идем выше
+                    }
+                    return true;
+                } else if (previous == currentAlgo.Right) // поднимаемся, пришли из правого поддерева
+                {
+                    previous = currentAlgo; // если это произошло, значит, что левое поддерево, сам узел и правое уже выдали итератору
+                    currentAlgo = currentAlgo.Parent; // следовательно, просто поднимаемся выше
+                }                
+            }
+            return false; // анлак
+        }
+
+        private bool MoveNextPreOrder()
+        {
+            while (currentAlgo != null)
+            {
+                if (previous == currentAlgo.Parent)
+                {
+                    previous = currentAlgo;
+                    current = currentAlgo;
+                    if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    } else if (currentAlgo.Right != null)
+                    {
+                        currentAlgo = currentAlgo.Right;
+                    } else {
+                        currentAlgo = currentAlgo.Parent;
+                    }
+                    return true;
+                } else if (previous == currentAlgo.Left)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Right != null)
+                    {
+                        currentAlgo = currentAlgo.Right;
+
+                    } else
+                    {
+                        currentAlgo = currentAlgo.Parent;
+                    }
+                } else if (previous == currentAlgo.Right)
+                {
+                    previous = currentAlgo;
+                    currentAlgo = currentAlgo.Parent;
+                }                
+            }
+            return false;
+        }
+
+        private bool MoveNextPostOrder()
+        {
+            while (currentAlgo != null)
+            {
+                if (previous == currentAlgo.Parent)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    } else
+                    {
+                        current = currentAlgo;
+                        if (currentAlgo.Right != null)
+                        {
+                            currentAlgo = currentAlgo.Right;
+                        } else
+                        {
+                            currentAlgo = currentAlgo.Parent;
+                        }
+                        return true;
+                    }
+                } else if (previous == currentAlgo.Left)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Right != null)
+                    {
+                        currentAlgo = currentAlgo.Right;
+
+                    } else
+                    {
+                        currentAlgo = currentAlgo.Parent;
+                    }
+                } else if (previous == currentAlgo.Right)
+                {
+                    current = currentAlgo;
+                    previous = currentAlgo;
+                    currentAlgo = currentAlgo.Parent;
+                    return true;
+                }                
+            }
+            return false;
+        }
+
+        private bool MoveNextInOrderReverse()
+        {
+            while (currentAlgo != null)
+            {
+                if (previous == currentAlgo.Parent)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Right != null)
+                    {
+                        currentAlgo = currentAlgo.Right;
+                    } else
+                    {
+                        current = currentAlgo;
+                        if (currentAlgo.Left != null)
+                        {
+                            currentAlgo = currentAlgo.Left;
+                        } else
+                        {
+                            currentAlgo = currentAlgo.Parent;
+                        }
+                        return true;
+                    } 
+                } else if (previous == currentAlgo.Right)
+                {
+                    previous = currentAlgo;
+                    current = currentAlgo;
+                    if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    } else
+                    {
+                        currentAlgo = currentAlgo.Parent;
+                    }
+                    return true;
+                } else if (previous == currentAlgo.Left)
+                {
+                    previous = currentAlgo;
+                    currentAlgo = currentAlgo.Parent;
+                }
+            }
+            return false;
+        }
+
+        private bool MoveNextPreOrderReverse()
+        {
+            while (currentAlgo != null)
+            {
+                if (previous == currentAlgo.Parent)
+                {
+                    previous = currentAlgo;
+                    current = currentAlgo;
+                    if (currentAlgo.Right != null)
+                    {
+                        currentAlgo = currentAlgo.Right;
+                    } else if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    }
+                    else
+                    {
+                        currentAlgo = currentAlgo.Parent;
+                    }
+                    return true;
+                }
+                else if (previous == currentAlgo.Right)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    }
+                    else
+                    {
+                        currentAlgo = currentAlgo.Parent;
+                    }
+                }
+                else if (previous == currentAlgo.Left)
+                {
+                    previous = currentAlgo;
+                    currentAlgo = currentAlgo.Parent;
+                }
+            }
+            return false;
+        }
+        private bool MoveNextPostOrderReverse()
+        {
+            while (currentAlgo != null)
+            {
+                if (previous == currentAlgo.Parent)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Right != null)
+                    {
+                        currentAlgo = currentAlgo.Right;
+                    }
+                    else if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    }
+                    else
+                    {
+                        current = currentAlgo;
+                        currentAlgo = currentAlgo.Parent;
+                        return true;
+                    }
+                }
+                else if (previous == currentAlgo.Right)
+                {
+                    previous = currentAlgo;
+                    if (currentAlgo.Left != null)
+                    {
+                        currentAlgo = currentAlgo.Left;
+                    }
+                    else
+                    {
+                        current = currentAlgo;
+                        currentAlgo = currentAlgo.Parent;
+                        return true;
+                    }
+                }
+                else if (previous == currentAlgo.Left)
+                {
+                    current = currentAlgo;
+                    previous = currentAlgo;
+                    currentAlgo = currentAlgo.Parent;
+                    return true;
+                }
+            }
+            return false;
         }
         
         public void Reset()
         {
-            _current = null;
-            _started = false;
+            current = Root;
+            currentAlgo = Root;
+            previous = null;
         }
 
         
         public void Dispose()
         {
-            // TODO release managed resources here
-        }
-
-        private static TNode? GetFirstNode(TNode? root, TraversalStrategy strategy)
-        {
-            if (root is null) return null;
-
-            return strategy switch
-            {
-                TraversalStrategy.InOrder => GoLeft(root),
-                TraversalStrategy.PreOrder => root,
-                TraversalStrategy.PostOrder => GoLeftR(root),
-                TraversalStrategy.InOrderReverse => GoRight(root),
-                TraversalStrategy.PreOrderReverse => GoRightL(root),
-                TraversalStrategy.PostOrderReverse => root,
-                _ => throw new ArgumentOutOfRangeException(nameof(strategy))
-            };
-        }
-
-        private static TNode? GetNextNode(TNode? node, TraversalStrategy strategy)
-        {
-            if (node is null) return null;
-            return strategy switch
-            {
-                TraversalStrategy.InOrder => NextInOrder(node),
-                TraversalStrategy.InOrderReverse => NextInOrderReverse(node),
-                TraversalStrategy.PreOrder => NextPreOrder(node),
-                TraversalStrategy.PreOrderReverse => NextPreOrderReverse(node),
-                TraversalStrategy.PostOrder => NextPostOrder(node),
-                TraversalStrategy.PostOrderReverse => NextPostOrderReverse(node),
-                _ => throw new ArgumentOutOfRangeException(nameof(strategy))
-            };
-        }
-
-        private static TNode GoLeft(TNode node)
-        {
-           while (node.Left is not null) node = node.Left;
-           return node;
-        }
-
-        private static TNode GoLeftR(TNode node)
-        {
-            while (node.Left is not null || node.Right is not null)
-            {
-                if (node.Left is null)
-                {
-                    node = node.Right!;
-                }
-                else
-                {
-                    node = node.Left!;
-                }
-            }
-            return node;
-        }
-
-        private static TNode GoRight(TNode node)
-        {
-            while (node.Right is not null) node = node.Right;
-            return  node;
-        }
-
-        private static TNode GoRightL(TNode node)
-        {
-            while (node.Left is not null || node.Right is not null)
-            {
-                if (node.Right is null)
-                {
-                    node = node.Left!;
-                }
-                else
-                {
-                    node = node.Right!;
-                }
-            }
-            return node;
-        }
-
-        private static TNode? NextInOrder(TNode node)
-        {
-            if (node.Right is not null)
-            {
-                return GoLeft(node.Right);
-            }
-            var current = node;
-            while (current.Parent is not null && current.IsRightChild)
-            {
-                current = current.Parent;
-            }
-            return current.Parent;
-        }
-        private static TNode? NextInOrderReverse(TNode node)
-        {
-            if (node.Left is not null)
-            {
-                return GoRight(node.Left);
-            }
-            var current = node;
-            while (current.Parent is not null && current.IsLeftChild)
-            {
-                current = current.Parent;
-            }
-            return current.Parent;
-        }
-        private static TNode? NextPreOrder(TNode node)
-        {
-            if (node.Left is not null) return node.Left;
-            if (node.Right is not null) return node.Right;
-
-            var current = node;
-            while (current.Parent is not null)
-            {
-                if (current.Parent.Right is not null && current.IsLeftChild) return current.Parent.Right;
-                current = current.Parent;
-            }
-            return null;
-        }
-
-        private static TNode? NextPreOrderReverse(TNode node)
-        {
-            if (node.Parent is null) return null;
-
-            if (node.IsRightChild && node.Parent.Left is not null) return GoRightL(node.Parent.Left);
-
-            return node.Parent;
-        }
-
-        private static TNode? NextPostOrder(TNode node)
-        {
-            if (node.Parent is null) return null;
-            if (node.IsLeftChild && node.Parent.Right is not null) return GoLeftR(node.Parent.Right);
-            return node.Parent;
-
-        }
-        private static TNode? NextPostOrderReverse(TNode node)
-        {
-            if (node.Right is not null) return node.Right;
-            if (node.Left is not null) return node.Left;
-
-            var current = node;
-            while (current.Parent is not null)
-            {
-                if (current.Parent.Left is not null && current.IsRightChild) return current.Parent.Left;
-                current = current.Parent;
-            }
-            return null;
+            Reset();
         }
     }
     
     
     private enum TraversalStrategy { InOrder, PreOrder, PostOrder, InOrderReverse, PreOrderReverse, PostOrderReverse }
     
-    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => new DictionaryEnumerator(Root);
+    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
+    {
+        return new TreeKeyValueEnumerator(Root);
+    }
+    
+    private struct TreeKeyValueEnumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+    {
+        private TreeIterator iterator;
+        private KeyValuePair<TKey, TValue> current;
 
+        public TreeKeyValueEnumerator(TNode? root)
+        {
+            iterator = new TreeIterator(root, TraversalStrategy.InOrder);
+            current = default;
+        }
+
+        public KeyValuePair<TKey, TValue> Current => current;
+        object IEnumerator.Current => Current;
+
+        public bool MoveNext()
+        {
+            if (iterator.MoveNext())
+            {
+                var entry = iterator.Current;
+                current = new KeyValuePair<TKey, TValue>(entry.Key, entry.Value);
+                return true;
+            }
+            
+            current = default;
+            return false;
+        }
+
+        public void Reset()
+        {
+            iterator.Reset();
+            current = default;
+        }
+
+        public void Dispose()
+        {
+            iterator.Dispose();
+        }
+    }
+
+    
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-    private class DictionaryEnumerator(TNode? root) : IEnumerator<KeyValuePair<TKey, TValue>>
-    {
-        private TreeIterator _inner = new(root, TraversalStrategy.InOrder);
-        public KeyValuePair<TKey, TValue> Current => new(_inner.Current.Key, _inner.Current.Value);
-        object IEnumerator.Current => Current;
-        public bool MoveNext() => _inner.MoveNext();
-        public void Reset() => _inner.Reset();
-        public void Dispose() { }
-    }
 
     public void Add(KeyValuePair<TKey, TValue> item) => Add(item.Key, item.Value);
     public void Clear() { Root = null; Count = 0; }
@@ -504,15 +661,15 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode> (IComparer<TKey>
     public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
     {
         ArgumentNullException.ThrowIfNull(array);
-
-        if (arrayIndex < 0 || arrayIndex > array.Length)
+        if (arrayIndex < 0 || arrayIndex >= array.Length)
             throw new ArgumentOutOfRangeException(nameof(arrayIndex));
-
         if (array.Length - arrayIndex < Count)
-            throw new ArgumentException("Destination is too small", nameof(array));
+            throw new ArgumentException("Destination array is not long enough");
 
-        foreach (var entry in InOrder())
-            array[arrayIndex++] = new KeyValuePair<TKey, TValue>(entry.Key, entry.Value);
-    }
+        foreach (var pair in this)
+        {
+            array[arrayIndex++] = pair;
+        }
+    }        
     public bool Remove(KeyValuePair<TKey, TValue> item) => Remove(item.Key);
 }
