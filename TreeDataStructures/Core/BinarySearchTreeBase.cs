@@ -167,32 +167,32 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
         return null;
     }
 
-    protected void RotateLeft(TNode x)
+    protected void RotateLeft(TNode oldRoot)
     {
-        if (x.Right is null) return;
-        var y = x.Right;
+        if (oldRoot.Right is null) return;
+        var newRoot = oldRoot.Right;
 
-        x.Right = y.Left;
-        x.Right?.Parent = x;
+        oldRoot.Right = newRoot.Left;
+        oldRoot.Right?.Parent = oldRoot;
 
-        Transplant(x, y);
+        Transplant(oldRoot, newRoot);
 
-        y.Left = x;
-        x.Parent = y;
+        newRoot.Left = oldRoot;
+        oldRoot.Parent = newRoot;
     }
 
-    protected void RotateRight(TNode y)
+    protected void RotateRight(TNode oldRoot)
     {
-        if (y.Left is null) return;
-        var x = y.Left;
+        if (oldRoot.Left is null) return;
+        var newRoot = oldRoot.Left;
 
-        y.Left = x.Right;
-        x.Right?.Parent = y;
+        oldRoot.Left = newRoot.Right;
+        newRoot.Right?.Parent = oldRoot;
 
-        Transplant(y, x);
+        Transplant(oldRoot, newRoot);
 
-        x.Right = y;
-        y.Parent = x;
+        newRoot.Right = oldRoot;
+        oldRoot.Parent = newRoot;
     }
 
     protected void RotateBigLeft(TNode x)
