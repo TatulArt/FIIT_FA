@@ -15,7 +15,7 @@ public class Treap<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, TreapNode<
         if (root == null)
             return (null, null);
 
-        if (Comparer.Compare(key, root.Key) < 0) {
+        if (Comparer.Compare(key, root.Key) <= 0) {
             var (left, right) = Split(root.Left, key);
             root.Left = right;
             UpdateParent(root, root.Left);

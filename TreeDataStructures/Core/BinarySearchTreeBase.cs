@@ -212,8 +212,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     protected void RotateDoubleLeft(TNode gparent)
     {
         var parent = gparent.Right;
-        if (parent is null)
-            return;
+        if (parent is null) return;
         RotateLeft(gparent);
         RotateLeft(parent);
     }
@@ -221,8 +220,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     protected void RotateDoubleRight(TNode gparent)
     {
         var parent = gparent.Left;
-        if (parent is null)
-            return;
+        if (parent is null) return;
         RotateRight(gparent);
         RotateRight(parent);
     }
@@ -377,7 +375,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
             return false; // анлак
         }
 
-        private bool MoveNextPreOrder()
+        private bool MoveNextPreOrder() // корень - лево - право
         {
             while (currentAlgo != null)
             {
