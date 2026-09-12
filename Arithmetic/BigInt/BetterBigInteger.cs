@@ -170,38 +170,76 @@ public sealed class BetterBigInteger : IBigInteger
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-        RequireNonNegative(a);
-        RequireNonNegative(b);
-        return new BetterBigInteger(BitwiseAndMagnitudes(a.GetDigits(), b.GetDigits()), false);
+        return Bitwise(a, b, static (x, y) => x & y);
     }
 
     public static BetterBigInteger operator |(BetterBigInteger a, BetterBigInteger b)
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-        RequireNonNegative(a);
-        RequireNonNegative(b);
-        return new BetterBigInteger(BitwiseOrMagnitudes(a.GetDigits(), b.GetDigits()), false);
+        return Bitwise(a, b, static (x, y) => x | y);
     }
 
     public static BetterBigInteger operator ^(BetterBigInteger a, BetterBigInteger b)
     {
         ArgumentNullException.ThrowIfNull(a);
         ArgumentNullException.ThrowIfNull(b);
-        RequireNonNegative(a);
-        RequireNonNegative(b);
-        return new BetterBigInteger(BitwiseXorMagnitudes(a.GetDigits(), b.GetDigits()), false);
+        return Bitwise(a, b, static (x, y) => x ^ y);
     }
 
-    private static void RequireNonNegative(BetterBigInteger value)
+    // Побитовые операции определены над дополнительным кодом, в котором отрицательное
+    // число — это бесконечная последовательность единиц слева. Числа хранятся в формате
+    // "знак + модуль", поэтому оба операнда сначала переводятся в дополнительный код
+    // одинаковой ширины, затем применяется поразрядная операция, а результат переводится
+    // обратно. Ширина берётся на один разряд больше самого длинного операнда: этот
+    // старший разряд целиком заполнен знаком (0 или 0xFFFFFFFF), поэтому по знаковому
+    // биту результата однозначно определяется знак ответа, а переполнения не возникает.
+    private static BetterBigInteger Bitwise(BetterBigInteger a, BetterBigInteger b, Func<uint, uint, uint> operation)
     {
-        if (value.IsNegative)
+        ReadOnlySpan<uint> digitsA = a.GetDigits();
+        ReadOnlySpan<uint> digitsB = b.GetDigits();
+        int width = Math.Max(digitsA.Length, digitsB.Length) + 1;
+
+        uint[] wordsA = ToTwosComplement(digitsA, a.IsNegative, width);
+        uint[] wordsB = ToTwosComplement(digitsB, b.IsNegative, width);
+
+        for (int i = 0; i < width; i++)
         {
-            throw new InvalidOperationException(
-                "Операции &, | и ^ в данной реализации определены только для неотрицательных чисел: " +
-                "число хранится в формате \"знак + модуль\", и для корректной побитовой семантики " +
-                "отрицательных чисел потребовалось бы отдельное построение дополнительного кода.");
+            wordsA[i] = operation(wordsA[i], wordsB[i]);
         }
+
+        return FromTwosComplement(wordsA);
+    }
+
+    // Модуль -> дополнительный код фиксированной ширины width (в разрядах по 2^32).
+    private static uint[] ToTwosComplement(ReadOnlySpan<uint> magnitude, bool isNegative, int width)
+    {
+        uint[] words = new uint[width];
+        magnitude.CopyTo(words);
+        return isNegative ? NegateInPlace(words) : words;
+    }
+
+    // Дополнительный код -> число со знаком. Знак определяется старшим битом
+    // старшего разряда; массив используется повторно и после вызова не валиден.
+    private static BetterBigInteger FromTwosComplement(uint[] words)
+    {
+        bool isNegative = (words[^1] >> 31) != 0;
+        return isNegative
+            ? new BetterBigInteger(NegateInPlace(words), true)
+            : new BetterBigInteger(words, false);
+    }
+
+    // Смена знака в дополнительном коде: ~x + 1, на месте.
+    private static uint[] NegateInPlace(uint[] words)
+    {
+        ulong carry = 1;
+        for (int i = 0; i < words.Length; i++)
+        {
+            ulong value = (ulong)~words[i] + carry;
+            words[i] = (uint)value;
+            carry = value >> 32;
+        }
+        return words;
     }
 
     public static BetterBigInteger operator <<(BetterBigInteger a, int shift)
@@ -502,35 +540,6 @@ public sealed class BetterBigInteger : IBigInteger
         return result;
     }
 
-    private static uint[] BitwiseAndMagnitudes(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
-    {
-        int len = Math.Min(a.Length, b.Length);
-        uint[] result = new uint[Math.Max(len, 1)];
-        for (int i = 0; i < len; i++) result[i] = a[i] & b[i];
-        return result;
-    }
-
-    private static uint[] BitwiseOrMagnitudes(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
-    {
-        int len = Math.Max(a.Length, b.Length);
-        uint[] result = new uint[len];
-        for (int i = 0; i < len; i++)
-        {
-            result[i] = (i < a.Length ? a[i] : 0) | (i < b.Length ? b[i] : 0);
-        }
-        return result;
-    }
-
-    private static uint[] BitwiseXorMagnitudes(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
-    {
-        int len = Math.Max(a.Length, b.Length);
-        uint[] result = new uint[len];
-        for (int i = 0; i < len; i++)
-        {
-            result[i] = (i < a.Length ? a[i] : 0) ^ (i < b.Length ? b[i] : 0);
-        }
-        return result;
-    }
 
     // ---------------------------------------------------------------------
     // Деление по модулю (двоичное деление "столбиком", бит за битом)
