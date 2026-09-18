@@ -275,11 +275,7 @@ public sealed class BetterBigInteger : IBigInteger
         var digits = a.GetDigits();
         int wordShift = shift / 32;
         int bitShift = shift % 32;
-
-        // Сдвиг выполняется над модулем, то есть округляет частное к нулю.
-        // Арифметический сдвиг вправо должен округлять вниз (к минус бесконечности),
-        // поэтому для отрицательного числа, у которого хотя бы один из выброшенных
-        // младших битов был единицей, модуль результата увеличивается на единицу.
+        
         bool roundDown = a.IsNegative && HasLowBitsSet(digits, shift);
 
         if (wordShift >= digits.Length) return roundDown ? MinusOne : Zero;

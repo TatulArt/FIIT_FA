@@ -6,9 +6,19 @@ internal class SimpleMultiplier : IMultiplier
 {
     public BetterBigInteger Multiply(BetterBigInteger multiplier, BetterBigInteger multiplicand)
     {
-        ReadOnlySpan<uint> multiplierDigits = multiplier.GetDigits();
-        ReadOnlySpan<uint> multiplicandDigits = multiplicand.GetDigits();
-        
+        ArgumentNullException.ThrowIfNull(multiplier);
+        ArgumentNullException.ThrowIfNull(multiplicand);
+
+        uint[] productDigits = MultiplyMagnitude(multiplier.GetDigits(), multiplicand.GetDigits());
+        bool isResultNegative = multiplier.IsNegative ^ multiplicand.IsNegative;
+        return new BetterBigInteger(productDigits, isResultNegative);
+    }
+
+    // Умножение «столбиком» над модулями: на входе разряды, на выходе разряды.
+    // Метод ничего не знает о знаке, поэтому переиспользуется как базовый случай
+    // рекурсии в KaratsubaMultiplier.
+    public static uint[] MultiplyMagnitude(ReadOnlySpan<uint> multiplierDigits, ReadOnlySpan<uint> multiplicandDigits)
+    {
         // Максимально возможная длина произведения двух чисел равна сумме длин их разрядов
         uint[] productDigits = new uint[multiplierDigits.Length + multiplicandDigits.Length];
 
@@ -43,8 +53,7 @@ internal class SimpleMultiplier : IMultiplier
             productDigits[multiplierIndex + multiplicandDigits.Length] = carry;
         }
 
-        bool isResultNegative = multiplier.IsNegative ^ multiplicand.IsNegative;
-        return new BetterBigInteger(productDigits, isResultNegative);
+        return productDigits;
     }
     
     // Перемножает два 32-битных разряда (uint) с учетом аккумулированного значения и входящего переноса.
